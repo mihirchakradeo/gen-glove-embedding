@@ -1,0 +1,1076 @@
+Operation 4: CLOSE - Close File
+
+
+16.2.1. SYNOPSIS
+
+
+     (cfh), seqid, open_stateid -> open_stateid
+
+16.2.2. ARGUMENT
+
+
+   struct CLOSE4args {
+           /* CURRENT_FH: object */
+           seqid4          seqid;
+           stateid4        open_stateid;
+   };
+
+16.2.3. RESULT
+
+
+   union CLOSE4res switch (nfsstat4 status) {
+    case NFS4_OK:
+            stateid4       open_stateid;
+    default:
+            void;
+   };
+
+16.2.4. DESCRIPTION
+
+
+The CLOSE operation releases share reservations for the regular or named attribute file as specified by the current filehandle <NULL>.  The share reservations and other state information released at the server as a result of this CLOSE are only associated with the supplied stateid <NULL>.  The sequence id provides for the correct ordering <NULL>.  State associated with other OPENs is not affected <NULL>.
+
+If byte-range locks are held, the client SHOULD release all locks before issuing a CLOSE <NULL>.  The server MAY free all outstanding locks on CLOSE, but some servers may not support the CLOSE of a file that still has byte-range locks held <NULL>.  The server MUST return failure if any locks would exist after the CLOSE <NULL>.
+
+On success, the current filehandle retains its value <NULL>.
+
+16.2.5. IMPLEMENTATION
+
+
+Even though CLOSE returns a stateid, this stateid is not useful to the client and should be treated as deprecated <NULL>.  CLOSE "shuts down" the state associated with all OPENs for the file by a single open-owner <NULL>.  As noted above, CLOSE will either release all file locking state or return an error <NULL>.  Therefore, the stateid returned by CLOSE is not useful for the operations that follow <NULL>. 
+
+16.7.  Operation 9: GETATTR - Get Attributes
+
+16.7.1.  SYNOPSIS
+
+     (cfh), attrbits -> attrbits, attrvals
+
+16.7.2.  ARGUMENT
+
+   struct GETATTR4args {
+           /* CURRENT_FH: directory or file */
+           bitmap4         attr_request;
+   };
+
+16.7.3.  RESULT
+
+   struct GETATTR4resok {
+           fattr4          obj_attributes;
+   };
+
+   union GETATTR4res switch (nfsstat4 status) {
+    case NFS4_OK:
+            GETATTR4resok  resok4;
+    default:
+            void;
+   };
+
+16.7.4.  DESCRIPTION
+
+The GETATTR operation will obtain attributes for the file system object specified by the current filehandle <NULL>.  The client sets a bit in the bitmap argument for each attribute value that it would like the server to return <NULL>.  The server returns an attribute bitmap that indicates the attribute values for which it was able to return values, followed by the attribute values ordered lowest attribute number first <NULL>.
+
+The server MUST return a value for each attribute that the client requests if the attribute is supported by the server <NULL>.  If the server does not support an attribute or cannot approximate a useful value, then it MUST NOT return the attribute value and MUST NOT set the attribute bit in the result bitmap <NULL>.  The server MUST return an error if it supports an attribute on the target but cannot obtain its value <NULL>.  In that case, no attribute values will be returned <NULL>.
+
+File systems that are absent should be treated as having support for a very small set of attributes as described in Section 8.3.1 -- even if previously, when the file system was present, more attributes were supported <NULL>.
+
+All servers MUST support the REQUIRED attributes, as specified in Section 5, for all file systems, with the exception of absent file systems <NULL>.
+
+On success, the current filehandle retains its value <NULL>.
+
+16.7.5.  IMPLEMENTATION
+
+Suppose there is an OPEN_DELEGATE_WRITE delegation held by another client for the file in question, and size and/or change are among the set of attributes being interrogated <NULL>.  The server has two choices <NULL>. First, the server can obtain the actual current value of these attributes from the client holding the delegation by using the CB_GETATTR callback <NULL>.  Second, the server, particularly when the delegated client is unresponsive, can recall the delegation in question <NULL>.  The GETATTR MUST NOT proceed until one of the following occurs:
+
+o  The requested attribute values are returned in the response to    CB_GETATTR <NULL>.
+
+o  The OPEN_DELEGATE_WRITE delegation is returned <NULL>.
+
+o  The OPEN_DELEGATE_WRITE delegation is revoked <NULL>.
+
+Unless one of the above happens very quickly, one or more NFS4ERR_DELAY errors will be returned while a delegation is outstanding <NULL>.
+
+16.8.  Operation 10: GETFH - Get Current Filehandle
+
+16.8.1.  SYNOPSIS
+
+     (cfh) -> filehandle
+
+16.8.2.  ARGUMENT
+
+     /* CURRENT_FH: */
+     void;
+
+16.8.3.  RESULT
+
+   struct GETFH4resok {
+           nfs_fh4         object;
+   };
+
+   union GETFH4res switch (nfsstat4 status) {
+    case NFS4_OK:
+            GETFH4resok     resok4;
+    default:
+            void;
+   };
+
+16.8.4.  DESCRIPTION
+
+This operation returns the current filehandle value <NULL>.
+
+On success, the current filehandle retains its value <NULL>.
+
+16.8.5.  IMPLEMENTATION
+
+Operations that change the current filehandle, like LOOKUP or CREATE, do not automatically return the new filehandle as a result <NULL>.  For instance, if a client needs to look up a directory entry and obtain its filehandle, then the following request is needed <NULL>.
+
+PUTFH  (directory filehandle)
+LOOKUP (entry name)
+GETFH
+
+16.9.  Operation 11: LINK - Create Link to a File
+
+16.9.1.  SYNOPSIS
+
+     (sfh), (cfh), newname -> (cfh), cinfo
+
+16.9.2.  ARGUMENT
+
+   struct LINK4args {
+           /* SAVED_FH: source object */
+           /* CURRENT_FH: target directory */
+           component4      newname;
+   };
+
+16.9.3.  RESULT
+
+   struct LINK4resok {
+           change_info4    cinfo;
+   };
+
+   union LINK4res switch (nfsstat4 status) {
+    case NFS4_OK:
+            LINK4resok resok4;
+    default:
+            void;
+   };
+
+16.9.4.  DESCRIPTION
+
+The LINK operation creates an additional newname for the file represented by the saved filehandle, as set by the SAVEFH operation, in the directory represented by the current filehandle <NULL>.  The existing file and the target directory must reside within the same file system on the server <NULL>.  On success, the current filehandle will continue to be the target directory <NULL>.  If an object exists in the target directory with the same name as newname, the server must return NFS4ERR_EXIST <NULL>.
+
+For the target directory, the server returns change_info4 information in cinfo <NULL>.  With the atomic field of the change_info4 struct, the server will indicate if the before and after change attributes were obtained atomically with respect to the link creation <NULL>.
+
+If newname has a length of 0 (zero), or if newname does not obey the UTF-8 definition, the error NFS4ERR_INVAL will be returned <NULL>.
+
+
+16.9.5.  IMPLEMENTATION
+
+Changes to any property of the "hard" linked files are reflected in all of the linked files <NULL>.  When a link is made to a file, the attributes for the file should have a value for numlinks that is one greater than the value before the LINK operation <NULL>.
+
+The statement "file and the target directory must reside within the same file system on the server" means that the fsid fields in the attributes for the objects are the same <NULL>.  If they reside on different file systems, the error NFS4ERR_XDEV is returned <NULL>.  This error may be returned by some servers when there is an internal partitioning of a file system that the LINK operation would violate <NULL>.
+
+On some servers, "." and ".." are illegal values for newname, and the error NFS4ERR_BADNAME will be returned if they are specified <NULL>.
+
+When the current filehandle designates a named attribute directory and the object to be linked (the saved filehandle) is not a named attribute for the same object, the error NFS4ERR_XDEV MUST be returned <NULL>.  When the saved filehandle designates a named attribute and the current filehandle is not the appropriate named attribute directory, the error NFS4ERR_XDEV MUST also be returned <NULL>.
+
+When the current filehandle designates a named attribute directory and the object to be linked (the saved filehandle) is a named attribute within that directory, the server MAY return the error NFS4ERR_NOTSUPP <NULL>.
+
+In the case that newname is already linked to the file represented by the saved filehandle, the server will return NFS4ERR_EXIST <NULL>.
+
+Note that symbolic links are created with the CREATE operation <NULL>.
+
+16.10.  Operation 12: LOCK - Create Lock
+
+16.10.1.  SYNOPSIS
+
+     (cfh) locktype, reclaim, offset, length, locker -> stateid
+
+16.10.2.  ARGUMENT
+
+   enum nfs_lock_type4 {
+           READ_LT         = 1,
+           WRITE_LT        = 2,
+           READW_LT        = 3,    /* blocking read */
+           WRITEW_LT       = 4     /* blocking write */
+   };
+
+   /*
+    * For LOCK, transition from open_owner to new lock_owner
+    */
+   struct open_to_lock_owner4 {
+           seqid4          open_seqid;
+           stateid4        open_stateid;
+           seqid4          lock_seqid;
+           lock_owner4     lock_owner;
+   };
+
+   /*
+    * For LOCK, existing lock_owner continues to request file locks
+    */
+   struct exist_lock_owner4 {
+           stateid4        lock_stateid;
+           seqid4          lock_seqid;
+   };
+
+   union locker4 switch (bool new_lock_owner) {
+    case TRUE:
+            open_to_lock_owner4     open_owner;
+    case FALSE:
+            exist_lock_owner4       lock_owner;
+   };
+
+
+   /*
+    * LOCK/LOCKT/LOCKU: Record lock management
+    */
+   struct LOCK4args {
+           /* CURRENT_FH: file */
+           nfs_lock_type4  locktype;
+           bool            reclaim;
+           offset4         offset;
+           length4         length;
+           locker4         locker;
+   };
+
+16.10.3.  RESULT
+
+   struct LOCK4denied {
+           offset4         offset;
+           length4         length;
+           nfs_lock_type4  locktype;
+           lock_owner4     owner;
+   };
+
+   struct LOCK4resok {
+           stateid4        lock_stateid;
+   };
+
+   union LOCK4res switch (nfsstat4 status) {
+    case NFS4_OK:
+            LOCK4resok     resok4;
+    case NFS4ERR_DENIED:
+            LOCK4denied    denied;
+    default:
+            void;
+   };
+
+16.10.4.  DESCRIPTION
+
+The LOCK operation requests a byte-range lock for the byte range specified by the offset and length parameters <NULL>.  The lock type is also specified to be one of the nfs_lock_type4s <NULL>.  If this is a reclaim request, the reclaim parameter will be TRUE <NULL>.
+
+Bytes in a file may be locked even if those bytes are not currently allocated to the file <NULL>.  To lock the file from a specific offset through the end-of-file (no matter how long the file actually is), use a length field with all bits set to 1 (one) <NULL>.  If the length is  zero, or if a length that is not all bits set to one is specified, and the length when added to the offset exceeds the maximum 64-bit unsigned integer value, the error NFS4ERR_INVAL will result <NULL>.
+
+32-bit servers are servers that support locking for byte offsets that fit within 32 bits (i.e., less than or equal to NFS4_UINT32_MAX) <NULL>.  If the client specifies a range that overlaps one or more bytes beyond offset NFS4_UINT32_MAX but does not end at offset NFS4_UINT64_MAX, then such a 32-bit server MUST return the error NFS4ERR_BAD_RANGE <NULL>.
+
+In the case that the lock is denied, the owner, offset, and length of a conflicting lock are returned <NULL>.
+
+On success, the current filehandle retains its value <NULL>.
+
+16.10.5.  IMPLEMENTATION
+
+If the server is unable to determine the exact offset and length of the conflicting lock, the same offset and length that were provided in the arguments should be returned in the denied results <NULL>.  Section 9 contains a full description of this and the other file locking operations <NULL>.
+
+LOCK operations are subject to permission checks and to checks against the access type of the associated file <NULL>.  However, the specific rights and modes required for various types of locks reflect the semantics of the server-exported file system, and are not specified by the protocol <NULL>.  For example, Windows 2000 allows a write lock of a file open for READ, while a POSIX-compliant system does not <NULL>.
+
+When the client makes a lock request that corresponds to a range that the lock-owner has locked already (with the same or different lock type), or to a sub-region of such a range, or to a region that includes multiple locks already granted to that lock-owner, in whole or in part, and the server does not support such locking operations (i.e., does not support POSIX locking semantics), the server will return the error NFS4ERR_LOCK_RANGE <NULL>.  In that case, the client may return an error, or it may emulate the required operations, using only LOCK for ranges that do not include any bytes already locked by that lock-owner and LOCKU of locks held by that lock-owner (specifying an exactly matching range and type) <NULL>.  Similarly, when the client makes a lock request that amounts to upgrading (changing from a read lock to a write lock) or downgrading (changing from a write lock to a read lock) an existing record lock and the server does not support such a lock, the server will return NFS4ERR_LOCK_NOTSUPP <NULL>. Such operations may not perfectly reflect the required semantics in the face of conflicting lock requests from other clients <NULL>.
+
+When a client holds an OPEN_DELEGATE_WRITE delegation, the client holding that delegation is assured that there are no opens by other clients <NULL>.  Thus, there can be no conflicting LOCK operations from such clients <NULL>.  Therefore, the client may be handling locking requests locally, without doing LOCK operations on the server <NULL>.  If it does that, it must be prepared to update the lock status on the server by sending appropriate LOCK and LOCKU operations before returning the delegation <NULL>.
+
+When one or more clients hold OPEN_DELEGATE_READ delegations, any LOCK operation where the server is implementing mandatory locking semantics MUST result in the recall of all such delegations <NULL>.  The LOCK operation may not be granted until all such delegations are returned or revoked <NULL>.  Except where this happens very quickly, one or more NFS4ERR_DELAY errors will be returned to requests made while the delegation remains outstanding <NULL>.
+
+The locker argument specifies the lock-owner that is associated with the LOCK request <NULL>.  The locker4 structure is a switched union that indicates whether the client has already created byte-range locking state associated with the current open file and lock-owner <NULL>.  There are multiple cases to be considered, corresponding to possible combinations of whether locking state has been created for the current open file and lock-owner, and whether the boolean new_lock_owner is set <NULL>.  In all of the cases, there is a lock_seqid specified, whether the lock-owner is specified explicitly or implicitly <NULL>.  This seqid value is used for checking lock-owner sequencing/replay issues <NULL>.  When the given lock-owner is not known to the server, this establishes an initial sequence value for the new lock-owner <NULL>.
+
+o  In the case in which the state has been created and the boolean is false, the only part of the argument other than lock_seqid is just a stateid representing the set of locks associated with that open file and lock-owner <NULL>.
+
+o  In the case in which the state has been created and the boolean is true, the server rejects the request with the error NFS4ERR_BAD_SEQID <NULL>.  The only exception is where there is a retransmission of a previous request in which the boolean was true <NULL>.  In this case, the lock_seqid will match the original request, and the response will reflect the final case, below <NULL>.
+
+o  In the case where no byte-range locking state has been established and the boolean is true, the argument contains an open_to_lock_owner structure that specifies the stateid of the open file and the lock-owner to be used for the lock <NULL>.  Note that although the open-owner is not given explicitly, the open_seqid associated with it is used to check for open-owner sequencing issues <NULL>.  This case provides a method to use the established state of the open_stateid to transition to the use of a lock stateid <NULL>.
+
+16.11.  Operation 13: LOCKT - Test for Lock
+
+16.11.1.  SYNOPSIS
+
+     (cfh) locktype, offset, length, owner -> {void, NFS4ERR_DENIED ->
+     owner}
+
+16.11.2.  ARGUMENT
+
+   struct LOCKT4args {
+           /* CURRENT_FH: file */
+           nfs_lock_type4  locktype;
+           offset4         offset;
+           length4         length;
+           lock_owner4     owner;
+   };
+
+16.11.3.  RESULT
+
+   union LOCKT4res switch (nfsstat4 status) {
+    case NFS4ERR_DENIED:
+            LOCK4denied    denied;
+    case NFS4_OK:
+            void;
+    default:
+            void;
+   };
+
+16.11.4.  DESCRIPTION
+
+The LOCKT operation tests the lock as specified in the arguments <NULL>.  If a conflicting lock exists, the owner, offset, length, and type of the conflicting lock are returned; if no lock is held, nothing other than NFS4_OK is returned <NULL>.  Lock types READ_LT and READW_LT are processed in the same way in that a conflicting lock test is done without regard to blocking or non-blocking <NULL>.  The same is true for WRITE_LT and WRITEW_LT <NULL>.
+
+The ranges are specified as for LOCK <NULL>.  The NFS4ERR_INVAL and NFS4ERR_BAD_RANGE errors are returned under the same circumstances as for LOCK <NULL>.
+
+On success, the current filehandle retains its value <NULL>.
+
+
+16.11.5.  IMPLEMENTATION
+
+If the server is unable to determine the exact offset and length of the conflicting lock, the same offset and length that were provided in the arguments should be returned in the denied results <NULL>.  Section 9 contains further discussion of the file locking mechanisms <NULL>.
+
+LOCKT uses a lock_owner4, rather than a stateid4 as is used in LOCK, to identify the owner <NULL>.  This is because the client does not have to open the file to test for the existence of a lock, so a stateid may not be available <NULL>.
+
+The test for conflicting locks SHOULD exclude locks for the current lock-owner <NULL>.  Note that since such locks are not examined the possible existence of overlapping ranges may not affect the results of LOCKT <NULL>. If the server does examine locks that match the lock-owner for the purpose of range checking, NFS4ERR_LOCK_RANGE may be returned <NULL>.  In the event that it returns NFS4_OK, clients may do a LOCK and receive NFS4ERR_LOCK_RANGE on the LOCK request because of the flexibility provided to the server <NULL>.
+
+When a client holds an OPEN_DELEGATE_WRITE delegation, it may choose (see Section 16.10.5) to handle LOCK requests locally <NULL>.  In such a case, LOCKT requests will similarly be handled locally <NULL>.
+
+16.12.  Operation 14: LOCKU - Unlock File
+
+16.12.1.  SYNOPSIS
+
+     (cfh) type, seqid, stateid, offset, length -> stateid
+
+16.12.2.  ARGUMENT
+
+   struct LOCKU4args {
+           /* CURRENT_FH: file */
+           nfs_lock_type4  locktype;
+           seqid4          seqid;
+           stateid4        lock_stateid;
+           offset4         offset;
+           length4         length;
+   };
+
+16.12.3.  RESULT
+
+   union LOCKU4res switch (nfsstat4 status) {
+    case NFS4_OK:
+            stateid4       lock_stateid;
+    default:
+            void;
+   };
+
+16.12.4.  DESCRIPTION
+
+The LOCKU operation unlocks the byte-range lock specified by the parameters <NULL>.  The client may set the locktype field to any value that is legal for the nfs_lock_type4 enumerated type, and the server MUST accept any legal value for locktype <NULL>.  Any legal value for locktype has no effect on the success or failure of the LOCKU operation <NULL>.
+
+The ranges are specified as for LOCK <NULL>.  The NFS4ERR_INVAL and NFS4ERR_BAD_RANGE errors are returned under the same circumstances as  for LOCK <NULL>.
+
+On success, the current filehandle retains its value <NULL>.
+
+
+16.12.5.  IMPLEMENTATION
+
+If the area to be unlocked does not correspond exactly to a lock actually held by the lock-owner, the server may return the error NFS4ERR_LOCK_RANGE <NULL>.  This includes the cases where (1) the area is not locked, (2) the area is a sub-range of the area locked, (3) it overlaps the area locked without matching exactly, or (4) the area specified includes multiple locks held by the lock-owner <NULL>.  In all of these cases, allowed by POSIX locking [fcntl] semantics, a client receiving this error should, if it desires support for such operations, simulate the operation using LOCKU on ranges corresponding to locks it actually holds, possibly followed by LOCK requests for the sub-ranges not being unlocked <NULL>.
+
+When a client holds an OPEN_DELEGATE_WRITE delegation, it may choose (see Section 16.10.5) to handle LOCK requests locally <NULL>.  In such a case, LOCKU requests will similarly be handled locally <NULL>.
+
+16.13.  Operation 15: LOOKUP - Look Up Filename
+
+16.13.1.  SYNOPSIS
+
+     (cfh), component -> (cfh)
+
+16.13.2.  ARGUMENT
+
+   struct LOOKUP4args {
+           /* CURRENT_FH: directory */
+           component4      objname;
+   };
+
+16.13.3.  RESULT
+
+   struct LOOKUP4res {
+           /* CURRENT_FH: object */
+           nfsstat4        status;
+   };
+
+16.13.4.  DESCRIPTION
+
+This operation performs a LOOKUP or finds a file system object using the directory specified by the current filehandle <NULL>.  LOOKUP evaluates the component and if the object exists the current filehandle is replaced with the component's filehandle <NULL>.
+
+If the component cannot be evaluated because either it does not exist or the client does not have permission to evaluate it, then an error will be returned, and the current filehandle will be unchanged <NULL>.
+
+If the component is of zero length, NFS4ERR_INVAL will be returned <NULL>. The component is also subject to the normal UTF-8, character support, and name checks <NULL>.  See Section 12.7 for further discussion <NULL>.
+
+
+16.13.5.  IMPLEMENTATION
+
+If the client wants to achieve the effect of a multi-component lookup, it may construct a COMPOUND request such as the following (and obtain each filehandle):
+
+PUTFH  (directory filehandle)
+LOOKUP "pub"
+GETFH
+LOOKUP "foo"
+GETFH
+LOOKUP "bar"
+GETFH
+
+NFSv4 servers depart from the semantics of previous NFS versions in allowing LOOKUP requests to cross mount points on the server <NULL>.  The client can detect a mount point crossing by comparing the fsid attribute of the directory with the fsid attribute of the directory looked up <NULL>.  If the fsids are different, then the new directory is a server mount point <NULL>.  UNIX clients that detect a mount point crossing will need to mount the server's file system <NULL>.  This needs to be done to maintain the file object identity-checking mechanisms common to UNIX clients <NULL>.
+
+Servers that limit NFS access to "shares" or "exported" file systems should provide a pseudo-file system into which the exported file systems can be integrated, so that clients can browse the server's namespace <NULL>.  The clients' view of a pseudo-file system will be limited to paths that lead to exported file systems <NULL>.
+
+Note: Previous versions of the protocol assigned special semantics to the names "." and "..".  NFSv4 assigns no special semantics to these names <NULL>.  The LOOKUPP operator must be used to look up a parent directory <NULL>.
+
+Note that this operation does not follow symbolic links <NULL>.  The client is responsible for all parsing of filenames, including filenames that are modified by symbolic links encountered during the lookup process <NULL>.
+
+If the current filehandle supplied is not a directory but a symbolic link, NFS4ERR_SYMLINK is returned as the error <NULL>.  For all other non-directory file types, the error NFS4ERR_NOTDIR is returned <NULL>.
+
+16. NFSv4 Operations
+
+16.1. Operation 3: ACCESS - Check Access Rights
+
+16.1.1. SYNOPSIS
+
+     (cfh), accessreq -> supported, accessrights
+
+16.1.2 ARGUMENT
+
+   const ACCESS4_READ      = 0x00000001;
+   const ACCESS4_LOOKUP    = 0x00000002;
+   const ACCESS4_MODIFY    = 0x00000004;
+   const ACCESS4_EXTEND    = 0x00000008;        
+   const ACCESS4_DELETE    = 0x00000010;
+   const ACCESS4_EXECUTE   = 0x00000020;
+
+   struct ACCESS4args {
+           /* CURRENT_FH: object */
+           uint32_t        access;
+   };
+
+16.1.3. RESULT
+
+   struct ACCESS4resok {
+           uint32_t        supported;
+           uint32_t        access;
+   };
+
+   union ACCESS4res switch (nfsstat4 status) {
+    case NFS4_OK:
+            ACCESS4resok   resok4;
+    default:
+            void;
+   };
+
+16.1.4.  DESCRIPTION
+
+ACCESS determines the access rights that a user, as identified by the credentials in the RPC request, has with respect to the file system object specified by the current filehandle <NULL>.  The client encodes the set of access rights that are to be checked in the bitmask "access" <NULL>. The server checks the permissions encoded in the bitmask <NULL>.  If status of NFS4_OK is returned, two bitmasks are included in the response <NULL>.  The first, "supported", represents the access rights for which the server can verify reliably <NULL>.  The second, "access", represents the access rights available to the user for the filehandle provided <NULL>.
+
+On success, the current filehandle retains its value <NULL>.
+
+Note that the supported field will contain only as many values as were originally sent in the arguments <NULL>.  For example, if the client sends an ACCESS operation with only the ACCESS4_READ value set and the server supports this value, the server will return only ACCESS4_READ even if it could have reliably checked other values <NULL>.
+
+The results of this operation are necessarily advisory in nature <NULL>.  A return status of NFS4_OK and the appropriate bit set in the bitmask do not imply that such access will be allowed to the file system object in the future <NULL>.  This is because access rights can be revoked by the server at any time <NULL>.
+
+The following access permissions may be requested:
+
+ACCESS4_READ:  Read data from file or read a directory  <NULL>.
+
+ACCESS4_LOOKUP:  Look up a name in a directory (no meaning for non-directory objects) <NULL>. 
+
+ACCESS4_MODIFY:  Rewrite existing file data or modify existing directory entries <NULL>. 
+
+ACCESS4_EXTEND:  Write new data or add directory entries <NULL>.
+
+ACCESS4_DELETE:  Delete an existing directory entry <NULL>. 
+
+ACCESS4_EXECUTE:  Execute file (no meaning for a directory) <NULL>. 
+
+On success, the current filehandle retains its value <NULL>. 
+
+16.1.5. IMPLEMENTATION
+
+In general, it is not sufficient for the client to attempt to deduce access permissions by inspecting the uid, gid, and mode fields in the file attributes or by attempting to interpret the contents of the ACL attribute <NULL>.  This is because the server may perform uid or gid mapping or enforce additional access control restrictions <NULL>.  It is also possible that the server may not be in the same ID space as the client <NULL>.  In these cases (and perhaps others), the client cannot reliably perform an access check with only current file attributes <NULL>. 
+
+In the NFSv2 protocol, the only reliable way to determine whether an operation was allowed was to try it and see if it succeeded or failed <NULL>.  Using the ACCESS operation in the NFSv4 protocol, the client can ask the server to indicate whether or not one or more classes of operations are permitted <NULL>.  The ACCESS operation is provided to allow clients to check before doing a series of operations that might result in an access failure <NULL>.  The OPEN operation provides a point where the server can verify access to the file object and the method to return that information to the client <NULL>.  The ACCESS operation is still useful for directory operations or for use in the case where the UNIX API "access" is used on the client <NULL>. 
+
+The information returned by the server in response to an ACCESS call is not permanent <NULL>.  It was correct at the exact time that the server performed the checks, but not necessarily afterward <NULL>.  The server can revoke access permission at any time <NULL>. 
+
+The client should use the effective credentials of the user to build the authentication information in the ACCESS request used to determine access rights <NULL>.  It is the effective user and group credentials that are used in subsequent READ and WRITE operations. Many implementations do not directly support the ACCESS4_DELETE permission <NULL>.  Operating systems like UNIX will ignore the ACCESS4_DELETE bit if set on an access request on a non-directory object <NULL>.  In these systems, delete permission on a file is determined by the access permissions on the directory in which the file resides, instead of being determined by the permissions of the file itself. Therefore, the mask returned enumerating which access rights can be supported will have the ACCESS4_DELETE value set to 0 <NULL>.  This indicates to the client that the server was unable to check that particular access right <NULL>.  The ACCESS4_DELETE bit in the access mask returned will then be ignored by the client <NULL>. 
+
+Operation 4: CLOSE - Close File
+
+
+16.2.1. SYNOPSIS
+
+
+     (cfh), seqid, open_stateid -> open_stateid
+
+16.2.2. ARGUMENT
+
+
+   struct CLOSE4args {
+           /* CURRENT_FH: object */
+           seqid4          seqid;
+           stateid4        open_stateid;
+   };
+
+16.2.3. RESULT
+
+
+   union CLOSE4res switch (nfsstat4 status) {
+    case NFS4_OK:
+            stateid4       open_stateid;
+    default:
+            void;
+   };
+
+16.2.4. DESCRIPTION
+
+
+The CLOSE operation releases share reservations for the regular or named attribute file as specified by the current filehandle <NULL>.  The share reservations and other state information released at the server as a result of this CLOSE are only associated with the supplied stateid <NULL>.  The sequence id provides for the correct ordering <NULL>.  State associated with other OPENs is not affected <NULL>.
+
+If byte-range locks are held, the client SHOULD release all locks before issuing a CLOSE <NULL>.  The server MAY free all outstanding locks on CLOSE, but some servers may not support the CLOSE of a file that still has byte-range locks held <NULL>.  The server MUST return failure if any locks would exist after the CLOSE <NULL>.
+
+On success, the current filehandle retains its value <NULL>.
+
+16.2.5. IMPLEMENTATION
+
+
+Even though CLOSE returns a stateid, this stateid is not useful to the client and should be treated as deprecated <NULL>.  CLOSE "shuts down" the state associated with all OPENs for the file by a single open-owner <NULL>.  As noted above, CLOSE will either release all file locking state or return an error <NULL>.  Therefore, the stateid returned by CLOSE is not useful for the operations that follow <NULL>. 
+
+16.3.  Operation 5: COMMIT - Commit Cached Data
+
+16.3.1.  SYNOPSIS
+
+     (cfh), offset, count -> verifier
+
+16.3.2.  ARGUMENT
+
+   struct COMMIT4args {
+           /* CURRENT_FH: file */
+           offset4         offset;
+           count4          count;
+   };
+
+16.3.3.  RESULT
+
+   struct COMMIT4resok {
+           verifier4       writeverf;
+   };
+
+   union COMMIT4res switch (nfsstat4 status) {
+    case NFS4_OK:
+            COMMIT4resok   resok4;
+    default:
+            void;
+   };
+
+16.3.4.  DESCRIPTION
+
+The COMMIT operation forces or flushes data to stable storage for the file specified by the current filehandle <NULL>.   The flushed data is that which was previously written with a WRITE operation that had the stable field set to UNSTABLE4 <NULL>. 
+
+The offset specifies the position within the file where the flush is to begin <NULL>.   An offset value of 0 (zero) means to flush data starting at the beginning of the file <NULL>.   The count specifies the number of bytes of data to flush <NULL>.   If count is 0 (zero), a flush from the offset to the end of the file is done <NULL>. 
+
+The server returns a write verifier upon successful completion of the COMMIT <NULL>.   The write verifier is used by the client to determine if the server has restarted or rebooted between the initial WRITE(s) and the COMMIT <NULL>.   The client does this by comparing the write verifier returned from the initial writes and the verifier returned by the COMMIT operation <NULL>.   The server must vary the value of the write verifier at each server event or instantiation that may lead to a loss of uncommitted data <NULL>.   Most commonly, this occurs when the server is rebooted; however, other events at the server may result in uncommitted data loss as well <NULL>. 
+
+On success, the current filehandle retains its value <NULL>. 
+
+16.3.5.  IMPLEMENTATION
+
+The COMMIT operation is similar in operation and semantics to the POSIX fsync() [fsync] system call that synchronizes a file's state with the disk (file data and metadata are flushed to disk or stable storage) <NULL>.   COMMIT performs the same operation for a client, flushing any unsynchronized data and metadata on the server to the server's disk or stable storage for the specified file <NULL>.   Like fsync(), it may be that there is some modified data or no modified data to synchronize <NULL>.   The data may have been synchronized by the server's normal periodic buffer synchronization activity <NULL>.   COMMIT should return NFS4_OK, unless there has been an unexpected error <NULL>. 
+
+COMMIT differs from fsync() in that it is possible for the client to flush a range of the file (most likely triggered by a buffer- reclamation scheme on the client before the file has been completely written) <NULL>. 
+
+The server implementation of COMMIT is reasonably simple <NULL>.   If the server receives a full file COMMIT request that is starting at offset 0 and count 0, it should do the equivalent of fsync()'ing the file <NULL>.  Otherwise, it should arrange to have the cached data in the range specified by offset and count to be flushed to stable storage <NULL>.   In both cases, any metadata associated with the file must be flushed to stable storage before returning <NULL>.   It is not an error for there to be nothing to flush on the server <NULL>.   This means that the data and metadata that needed to be flushed have already been flushed or lost during the last server failure <NULL>. 
+
+The client implementation of COMMIT is a little more complex <NULL>.   There are two reasons for wanting to commit a client buffer to stable storage <NULL>.   The first is that the client wants to reuse a buffer <NULL>.   In this case, the offset and count of the buffer are sent to the server in the COMMIT request <NULL>.   The server then flushes any cached data based on the offset and count, and flushes any metadata associated with the file <NULL>.   It then returns the status of the flush and the write verifier <NULL>.   The other reason for the client to generate a COMMIT is for a full file flush, such as may be done at CLOSE <NULL>.   In this case, the client would gather all of the buffers for this file that contain uncommitted data, do the COMMIT operation with an offset of 0 and count of 0, and then free all of those buffers <NULL>.   Any other dirty buffers would be sent to the server in the normal fashion <NULL>. 
+
+After a buffer is written by the client with the stable parameter set to UNSTABLE4, the buffer must be considered modified by the client until the buffer has been either flushed via a COMMIT operation or written via a WRITE operation with the stable parameter set to FILE_SYNC4 or DATA_SYNC4 <NULL>.   This is done to prevent the buffer from being freed and reused before the data can be flushed to stable storage on the server <NULL>. 
+
+When a response is returned from either a WRITE or a COMMIT operation and it contains a write verifier that is different than previously returned by the server, the client will need to retransmit all of the buffers containing uncommitted cached data to the server <NULL>.   How this is to be done is up to the implementer <NULL>.   If there is only one buffer of interest, then it should probably be sent back over in a WRITE request with the appropriate stable parameter <NULL>.   If there is more than one buffer, it might be worthwhile to retransmit all of the buffers in WRITE requests with the stable parameter set to UNSTABLE4 and then retransmit the COMMIT operation to flush all of the data on the server to stable storage <NULL>.   The timing of these retransmissions is left to the implementer <NULL>. 
+
+The above description applies to page-cache-based systems as well as buffer-cache-based systems <NULL>.   In those systems, the virtual memory system will need to be modified instead of the buffer cache <NULL>. 
+
+16.6.  Operation 8: DELEGRETURN - Return Delegation
+
+16.6.1.  SYNOPSIS
+
+     (cfh), stateid ->
+
+16.6.2.  ARGUMENT
+
+   struct DELEGRETURN4args {
+           /* CURRENT_FH: delegated file */
+           stateid4        deleg_stateid;
+   };
+
+16.6.3.  RESULT
+
+   struct DELEGRETURN4res {
+           nfsstat4        status;
+   };
+
+16.6.4.  DESCRIPTION
+
+DELEGRETURN returns the delegation represented by the current filehandle and stateid <NULL>.
+
+Delegations may be returned when recalled or voluntarily (i.e., before the server has recalled them).  In either case, the client must properly propagate state changed under the context of the delegation to the server before returning the delegation <NULL>.
+
+16.4.  Operation 6: CREATE - Create a Non-regular File Object
+
+16.4.1.  SYNOPSIS
+
+     (cfh), name, type, attrs -> (cfh), cinfo, attrset
+
+16.4.2.  ARGUMENT
+
+   union createtype4 switch (nfs_ftype4 type) {
+    case NF4LNK:
+            linktext4 linkdata;
+    case NF4BLK:
+    case NF4CHR:
+            specdata4 devdata;
+    case NF4SOCK:
+    case NF4FIFO:
+    case NF4DIR:
+            void;
+    default:
+            void;  /* server should return NFS4ERR_BADTYPE */
+   };
+
+   struct CREATE4args {
+           /* CURRENT_FH: directory for creation */
+           createtype4     objtype;
+           component4      objname;
+           fattr4          createattrs;
+   };
+
+16.4.3.  RESULT
+
+   struct CREATE4resok {
+           change_info4    cinfo;
+           bitmap4         attrset;        /* attributes set */
+   };
+
+   union CREATE4res switch (nfsstat4 status) {
+    case NFS4_OK:
+            CREATE4resok resok4;
+    default:
+            void;
+   };
+
+
+16.4.4.  DESCRIPTION
+
+The CREATE operation creates a non-regular file object in a directory with a given name <NULL>.   The OPEN operation is used to create a regular file <NULL>. 
+
+The objname specifies the name for the new object <NULL>.   The objtype determines the type of object to be created: directory, symlink, etc <NULL>. 
+
+If an object of the same name already exists in the directory, the server will return the error NFS4ERR_EXIST <NULL>. 
+
+For the directory where the new file object was created, the server returns change_info4 information in cinfo <NULL>.   With the atomic field of the change_info4 struct, the server will indicate if the before and after change attributes were obtained atomically with respect to the file object creation <NULL>. 
+
+If the objname is of zero length, NFS4ERR_INVAL will be returned <NULL>.  The objname is also subject to the normal UTF-8, character support, and name checks <NULL>.   See Section 12 <NULL>. 7 for further discussion <NULL>. 
+
+The current filehandle is replaced by that of the new object <NULL>. 
+
+The createattrs field specifies the initial set of attributes for the object <NULL>.   The set of attributes may include any writable attribute valid for the object type <NULL>.   When the operation is successful, the server will return to the client an attribute mask signifying which attributes were successfully set for the object <NULL>. 
+
+If createattrs includes neither the owner attribute nor an ACL with an ACE for the owner, and if the server's file system both supports and requires an owner attribute (or an owner ACE), then the server MUST derive the owner (or the owner ACE) <NULL>.   This would typically be from the principal indicated in the RPC credentials of the call, butthe server's operating environment or file system semantics may dictate other methods of derivation <NULL>.   Similarly, if createattrs includes neither the group attribute nor a group ACE, and if the server's file system both supports and requires the notion of a group attribute (or group ACE), the server MUST derive the group attribute (or the corresponding owner ACE) for the file <NULL>.   This could be from the RPC's credentials, such as the group principal if the credentials include it (such as with AUTH_SYS), from the group identifier associated with the principal in the credentials (e <NULL>. g <NULL>. , POSIX systems have a user database [getpwnam] that has the group identifier for every user identifier), inherited from the directory the object is created in, or whatever else the server's operating environment or file system semantics dictate <NULL>.   This applies to the OPEN operation too <NULL>. 
+
+Conversely, it is possible the client will specify in createattrs an owner attribute, group attribute, or ACL that the principal indicated the RPC's credentials does not have permissions to create files for <NULL>.  The error to be returned in this instance is NFS4ERR_PERM <NULL>.   This applies to the OPEN operation too <NULL>. 
+
+16.4.5.  IMPLEMENTATION
+
+If the client desires to set attribute values after the create, a SETATTR operation can be added to the COMPOUND request so that the appropriate attributes will be set <NULL>. 
+
+16.5.  Operation 7: DELEGPURGE - Purge Delegations Awaiting Recovery
+
+16.5.1.  SYNOPSIS
+
+     clientid ->
+
+16.5.2.  ARGUMENT
+
+   struct DELEGPURGE4args {
+           clientid4       clientid;
+   };
+
+16.5.3.  RESULT
+
+   struct DELEGPURGE4res {
+           nfsstat4        status;
+   };
+
+16.5.4.  DESCRIPTION
+
+DELEGPURGE purges all of the delegations awaiting recovery for a given client <NULL>.  This is useful for clients that do not commit delegation information to stable storage, to indicate that conflicting requests need not be delayed by the server awaiting recovery of delegation information <NULL>.
+
+This operation is provided to support clients that record delegation information in stable storage on the client <NULL>.  In this case, DELEGPURGE should be issued immediately after doing delegation recovery (using CLAIM_DELEGATE_PREV) on all delegations known to the client <NULL>.  Doing so will notify the server that no additional delegations for the client will be recovered, allowing it to free resources and avoid delaying other clients who make requests that conflict with the unrecovered delegations <NULL>.  All clients SHOULD use DELEGPURGE as part of recovery once it is known that no further CLAIM_DELEGATE_PREV recovery will be done <NULL>.  This includes clients that do not record delegation information in stable storage, who would then do a DELEGPURGE immediately after SETCLIENTID_CONFIRM <NULL>.
+
+The set of delegations known to the server and the client may be different <NULL>.  The reasons for this include:
+
+   o  A client may fail after making a request that resulted in delegation but before it received the results and committed them to the client's stable storage <NULL>.
+
+   o  A client may fail after deleting its indication that a delegation exists but before the delegation return is fully processed by the server <NULL>.
+
+   o  In the case in which the server and the client restart, the server may have limited persistent recording of delegations to a subset of those in existence <NULL>.
+
+   o  A client may have only persistently recorded information about a subset of delegations <NULL>.
+
+The server MAY support DELEGPURGE, but its support or non-support should match that of CLAIM_DELEGATE_PREV:
+
+   o  A server may support both DELEGPURGE and CLAIM_DELEGATE_PREV <NULL>. 
+
+   o  A server may support neither DELEGPURGE nor CLAIM_DELEGATE_PREV <NULL>.
+
+This fact allows a client starting up to determine if the server is prepared to support persistent storage of delegation information and thus whether it may use write-back caching to local persistent storage, relying on CLAIM_DELEGATE_PREV recovery to allow such changed data to be flushed safely to the server in the event of client restart <NULL>.
+
+
+16.14.  Operation 16: LOOKUPP - Look Up Parent Directory
+
+16.14.1.  SYNOPSIS
+
+     (cfh) -> (cfh)
+
+16.14.2.  ARGUMENT
+
+     /* CURRENT_FH: object */
+     void;
+
+16.14.3.  RESULT
+
+   struct LOOKUPP4res {
+           /* CURRENT_FH: directory */
+           nfsstat4        status;
+   };
+
+16.14.4.  DESCRIPTION
+
+The current filehandle is assumed to refer to a regular directory or a named attribute directory <NULL>.  LOOKUPP assigns the filehandle for its parent directory to be the current filehandle <NULL>.  If there is no parent directory, an NFS4ERR_NOENT error must be returned <NULL>.  Therefore, NFS4ERR_NOENT will be returned by the server when the current filehandle is at the root or top of the server's file tree <NULL>.
+
+16.14.5.  IMPLEMENTATION
+
+As for LOOKUP, LOOKUPP will also cross mount points <NULL>.
+
+If the current filehandle is not a directory or named attribute directory, the error NFS4ERR_NOTDIR is returned <NULL>.
+
+If the current filehandle is a named attribute directory that is associated with a file system object via OPENATTR (i.e., not a subdirectory of a named attribute directory), LOOKUPP SHOULD return the filehandle of the associated file system object <NULL>.
+
+16.15.  Operation 17: NVERIFY - Verify Difference in Attributes
+
+16.15.1.  SYNOPSIS
+
+     (cfh), fattr -> -
+
+16.15.2.  ARGUMENT
+
+   struct NVERIFY4args {
+           /* CURRENT_FH: object */
+           fattr4          obj_attributes;
+   };
+
+16.15.3.  RESULT
+
+   struct NVERIFY4res {
+           nfsstat4        status;
+   };
+
+16.15.4.  DESCRIPTION
+
+This operation is used to prefix a sequence of operations to be performed if one or more attributes have changed on some file system object <NULL>.  If all the attributes match, then the error NFS4ERR_SAME must be returned <NULL>.
+
+On success, the current filehandle retains its value <NULL>.
+
+
+16.15.5.  IMPLEMENTATION
+
+This operation is useful as a cache validation operator <NULL>.  If the object to which the attributes belong has changed, then the following operations may obtain new data associated with that object -- for instance, to check if a file has been changed and obtain new data if it has:
+
+PUTFH  (public)
+LOOKUP "foobar"
+NVERIFY attrbits attrs
+READ 0 32767
+
+In the case that a RECOMMENDED attribute is specified in the NVERIFY operation and the server does not support that attribute for the file system object, the error NFS4ERR_ATTRNOTSUPP is returned to the client <NULL>.
+
+When the attribute rdattr_error or any write-only attribute (e.g., time_modify_set) is specified, the error NFS4ERR_INVAL is returned to  the client <NULL>.
+
+16.16.  Operation 18: OPEN - Open a Regular File
+
+16.16.1.  SYNOPSIS
+
+     (cfh), seqid, share_access, share_deny, owner, openhow, claim ->
+     (cfh), stateid, cinfo, rflags, attrset, delegation
+
+16.16.2.  ARGUMENT
+
+   /*
+    * Various definitions for OPEN
+    */
+   enum createmode4 {
+           UNCHECKED4      = 0,
+           GUARDED4        = 1,
+           EXCLUSIVE4      = 2
+   };
+
+   union createhow4 switch (createmode4 mode) {
+    case UNCHECKED4:
+    case GUARDED4:
+            fattr4         createattrs;
+    case EXCLUSIVE4:
+            verifier4      createverf;
+   };
+
+   enum opentype4 {
+           OPEN4_NOCREATE  = 0,
+           OPEN4_CREATE    = 1
+   };
+
+   union openflag4 switch (opentype4 opentype) {
+    case OPEN4_CREATE:
+            createhow4     how;
+    default:
+            void;
+   };
+
+
+   /* Next definitions used for OPEN delegation */
+   enum limit_by4 {
+           NFS_LIMIT_SIZE          = 1,
+           NFS_LIMIT_BLOCKS        = 2
+           /* others as needed */
+   };
+
+   struct nfs_modified_limit4 {
+           uint32_t        num_blocks;
+           uint32_t        bytes_per_block;
+   };
+
+   union nfs_space_limit4 switch (limit_by4 limitby) {
+    /* limit specified as file size */
+    case NFS_LIMIT_SIZE:
+            uint64_t               filesize;
+    /* limit specified by number of blocks */
+    case NFS_LIMIT_BLOCKS:
+            nfs_modified_limit4    mod_blocks;
+   };
+
+   enum open_delegation_type4 {
+           OPEN_DELEGATE_NONE      = 0,
+           OPEN_DELEGATE_READ      = 1,
+           OPEN_DELEGATE_WRITE     = 2
+   };
+
+   enum open_claim_type4 {
+           CLAIM_NULL              = 0,
+           CLAIM_PREVIOUS          = 1,
+           CLAIM_DELEGATE_CUR      = 2,
+           CLAIM_DELEGATE_PREV     = 3
+   };
+
+   struct open_claim_delegate_cur4 {
+           stateid4        delegate_stateid;
+           component4      file;
+   };
+
+   union open_claim4 switch (open_claim_type4 claim) {
+    /*
+     * No special rights to file.
+     * Ordinary OPEN of the specified file.
+     */
+    case CLAIM_NULL:
+            /* CURRENT_FH: directory */
+            component4      file;
+    /*
+     * Right to the file established by an
+     * open previous to server reboot.  File
+     * identified by filehandle obtained at
+     * that time rather than by name.
+     */
+    case CLAIM_PREVIOUS:
+            /* CURRENT_FH: file being reclaimed */
+            open_delegation_type4   delegate_type;
+
+    /*
+     * Right to file based on a delegation
+     * granted by the server.  File is
+     * specified by name.
+     */
+    case CLAIM_DELEGATE_CUR:
+            /* CURRENT_FH: directory */
+            open_claim_delegate_cur4        delegate_cur_info;
+
+    /*
+     * Right to file based on a delegation
+     * granted to a previous boot instance
+     * of the client.  File is specified by name.
+     */
+    case CLAIM_DELEGATE_PREV:
+            /* CURRENT_FH: directory */
+            component4      file_delegate_prev;
+   };
+
+   /*
+    * OPEN: Open a file, potentially receiving an open delegation
+    */
+   struct OPEN4args {
+           seqid4          seqid;
+           uint32_t        share_access;
+           uint32_t        share_deny;
+           open_owner4     owner;
+           openflag4       openhow;
+           open_claim4     claim;
+   };
+
+
+16.16.3.  RESULT
+
+   struct open_read_delegation4 {
+    stateid4 stateid;    /* Stateid for delegation */
+    bool     recall;     /* Pre-recalled flag for
+                            delegations obtained
+                            by reclaim (CLAIM_PREVIOUS) */
+
+    nfsace4 permissions; /* Defines users who don't
+                            need an ACCESS call to
+                            open for read */
+   };
+
+   struct open_write_delegation4 {
+    stateid4 stateid;      /* Stateid for delegation */
+    bool     recall;       /* Pre-recalled flag for
+                              delegations obtained
+                              by reclaim
+                              (CLAIM_PREVIOUS) */
+
+    nfs_space_limit4
+              space_limit; /* Defines condition that
+                              the client must check to
+                              determine whether the
+                              file needs to be flushed
+                              to the server on close */
+
+    nfsace4   permissions; /* Defines users who don't
+                              need an ACCESS call as
+                              part of a delegated
+                              open */
+   };
+
+   union open_delegation4 switch
+      (open_delegation_type4 delegation_type) {
+           case OPEN_DELEGATE_NONE:
+                   void;
+           case OPEN_DELEGATE_READ:
+                   open_read_delegation4 read;
+           case OPEN_DELEGATE_WRITE:
+                   open_write_delegation4 write;
+   };
+
+   /*
+    * Result flags
+    */
+
+   /* Client must confirm open */
+   const OPEN4_RESULT_CONFIRM      = 0x00000002;
+   /* Type of file locking behavior at the server */
+   const OPEN4_RESULT_LOCKTYPE_POSIX = 0x00000004;
+
+   struct OPEN4resok {
+    stateid4       stateid;      /* Stateid for open */
+    change_info4   cinfo;        /* Directory change info */
+    uint32_t       rflags;       /* Result flags */
+    bitmap4        attrset;      /* attribute set for create */
+    open_delegation4 delegation; /* Info on any open
+                                    delegation */
+   };
+
+   union OPEN4res switch (nfsstat4 status) {
+    case NFS4_OK:
+            /* CURRENT_FH: opened file */
+            OPEN4resok      resok4;
+    default:
+            void;
+   };
+
+16.16.4.  Warning to Client Implementers
+
+OPEN resembles LOOKUP in that it generates a filehandle for the client to use <NULL>.  Unlike LOOKUP, though, OPEN creates server state on the filehandle <NULL>.  In normal circumstances, the client can only release this state with a CLOSE operation <NULL>.  CLOSE uses the current filehandle to determine which file to close <NULL>.  Therefore, the client MUST follow every OPEN operation with a GETFH operation in the same COMPOUND procedure <NULL>.  This will supply the client with the filehandle such that CLOSE can be used appropriately <NULL>.
+
+Simply waiting for the lease on the file to expire is insufficient because the server may maintain the state indefinitely as long as another client does not attempt to make a conflicting access to the same file <NULL>.
+
+16.16.5.  DESCRIPTION
+
+The OPEN operation creates and/or opens a regular file in a directory with the provided name <NULL>.  If the file does not exist at the server and creation is desired, specification of the method of creation is provided by the openhow parameter <NULL>.  The client has the choice of three creation methods: UNCHECKED4, GUARDED4, or EXCLUSIVE4 <NULL>.
+
+If the current filehandle is a named attribute directory, OPEN will then create or open a named attribute file <NULL>.  Note that exclusive create of a named attribute is not supported <NULL>.  If the createmode is EXCLUSIVE4 and the current filehandle is a named attribute directory, the server will return EINVAL <NULL>.
+
+UNCHECKED4 means that the file should be created if a file of that name does not exist and encountering an existing regular file of that name is not an error <NULL>.  For this type of create, createattrs specifies the initial set of attributes for the file <NULL>.  The set of attributes may include any writable attribute valid for regular files <NULL>.  When an UNCHECKED4 create encounters an existing file, the attributes specified by createattrs are not used, except that when a size of zero is specified, the existing file is truncated <NULL>.  If GUARDED4 is specified, the server checks for the presence of a duplicate object by name before performing the create <NULL>.  If a duplicate exists, an error of NFS4ERR_EXIST is returned as the status <NULL>.  If the object does not exist, the request is performed as described for UNCHECKED4 <NULL>.  For each of these cases (UNCHECKED4 and GUARDED4), where the operation is successful, the server will return to the client an attribute mask signifying which attributes were successfully set for the object <NULL>.
+
+EXCLUSIVE4 specifies that the server is to follow exclusive creation semantics, using the verifier to ensure exclusive creation of the target <NULL>.  The server should check for the presence of a duplicate object by name <NULL>.  If the object does not exist, the server creates the object and stores the verifier with the object <NULL>.  If the object does exist and the stored verifier matches the verifier provided by the client, the server uses the existing object as the newly created object <NULL>.  If the stored verifier does not match, then an error of NFS4ERR_EXIST is returned <NULL>.  No attributes may be provided in this case, since the server may use an attribute of the target object to store the verifier <NULL>.  If the server uses an attribute to store the exclusive create verifier, it will signify which attribute was used by setting the appropriate bit in the attribute mask that is returned in the results <NULL>.
+
+For the target directory, the server returns change_info4 information in cinfo <NULL>.  With the atomic field of the change_info4 struct, the server will indicate if the before and after change attributes were obtained atomically with respect to the link creation <NULL>.  Upon successful creation, the current filehandle is replaced by that of the new object <NULL>.
+
+The OPEN operation provides for Windows share reservation capability with the use of the share_access and share_deny fields of the OPEN arguments <NULL>.  The client specifies at OPEN the required share_access and share_deny modes <NULL>.  For clients that do not directly support SHAREs (i.e., UNIX), the expected deny value is DENY_NONE <NULL>.  In the case that there is an existing share reservation that conflicts with the OPEN request, the server returns the error NFS4ERR_SHARE_DENIED <NULL>.  For a complete SHARE request, the client must provide values for the owner and seqid fields for the OPEN argument <NULL>.  For additional discussion of share semantics, see Section 9.9 <NULL>.
+
+In the case that the client is recovering state from a server failure, the claim field of the OPEN argument is used to signify that the request is meant to reclaim state previously held <NULL>.  The claim field of the OPEN argument is used to specify the file to be opened and the state information that the client claims to possess <NULL>.  There are four basic claim types that cover the various situations for an OPEN <NULL>.  They are as follows:
+
+CLAIM_NULL:  For the client, this is a new OPEN request, and there is no previous state associated with the file for the client <NULL>.
+
+CLAIM_PREVIOUS:  The client is claiming basic OPEN state for a file that was held previous to a server reboot <NULL>.  This is generally used when a server is returning persistent filehandles; the client may not have the filename to reclaim the OPEN <NULL>.
+
+CLAIM_DELEGATE_CUR:  The client is claiming a delegation for OPEN as granted by the server <NULL>.  This is generally done as part of recalling a delegation <NULL>.
+
+CLAIM_DELEGATE_PREV:  The client is claiming a delegation granted to a previous client instance <NULL>.  This claim type is for use after a SETCLIENTID_CONFIRM and before the corresponding DELEGPURGE in two situations: after a client reboot and after a lease expiration that resulted in loss of all lock state <NULL>.  The server MAY support CLAIM_DELEGATE_PREV <NULL>.  If it does support CLAIM_DELEGATE_PREV, SETCLIENTID_CONFIRM MUST NOT remove the client's delegation state, and the server MUST support the DELEGPURGE operation <NULL>.
+
+The following errors apply to use of the CLAIM_DELEGATE_PREV claim type:
+
+o  NFS4ERR_NOTSUPP is returned if the server does not support this claim type <NULL>.
+
+o  NFS4ERR_INVAL is returned if the reclaim is done at an inappropriate time, e.g., after DELEGPURGE has been done <NULL>.
+
+o  NFS4ERR_BAD_RECLAIM is returned if the other error conditions do not apply and the server has no record of the delegation whose reclaim is being attempted <NULL>.
+
+For OPEN requests whose claim type is other than CLAIM_PREVIOUS (i.e., requests other than those devoted to reclaiming opens after a server reboot) that reach the server during its grace or lease expiration period, the server returns an error of NFS4ERR_GRACE <NULL>.
+
+For any OPEN request, the server may return an open delegation, which allows further opens and closes to be handled locally on the client as described in Section 10.4 <NULL>.  Note that delegation is up to the server to decide <NULL>.  The client should never assume that delegation will or will not be granted in a particular instance <NULL>.  It should always be prepared for either case <NULL>.  A partial exception is the reclaim (CLAIM_PREVIOUS) case, in which a delegation type is claimed <NULL>.  In this case, delegation will always be granted, although the server may specify an immediate recall in the delegation structure <NULL>.
+
+The rflags returned by a successful OPEN allow the server to return information governing how the open file is to be handled <NULL>.
+
+OPEN4_RESULT_CONFIRM indicates that the client MUST execute an OPEN_CONFIRM operation before using the open file <NULL>. OPEN4_RESULT_LOCKTYPE_POSIX indicates that the server's file locking behavior supports the complete set of POSIX locking techniques [fcntl] <NULL>.  From this, the client can choose to manage file locking state in such a way as to handle a mismatch of file locking management <NULL>.
+
+If the component is of zero length, NFS4ERR_INVAL will be returned <NULL>. The component is also subject to the normal UTF-8, character support, and name checks <NULL>.  See Section 12.7 for further discussion <NULL>.
+
+When an OPEN is done and the specified open-owner already has the resulting filehandle open, the result is to "OR" together the new share and deny status, together with the existing status <NULL>.  In this case, only a single CLOSE need be done, even though multiple OPENs were completed <NULL>.  When such an OPEN is done, checking of share reservations for the new OPEN proceeds normally, with no exception for the existing OPEN held by the same owner <NULL>.  In this case, the stateid returned has an "other" field that matches that of the previous open, while the seqid field is incremented to reflect the changed status due to the new open (Section 9.1.4) <NULL>.
+
+If the underlying file system at the server is only accessible in a read-only mode and the OPEN request has specified OPEN4_SHARE_ACCESS_WRITE or OPEN4_SHARE_ACCESS_BOTH, the server will return NFS4ERR_ROFS to indicate a read-only file system <NULL>.
+
+As with the CREATE operation, the server MUST derive the owner, owner ACE, group, or group ACE if any of the four attributes are required and supported by the server's file system <NULL>.  For an OPEN with the EXCLUSIVE4 createmode, the server has no choice, since such OPEN calls do not include the createattrs field <NULL>.  Conversely, if createattrs is specified and includes owner or group (or corresponding ACEs) that the principal in the RPC's credentials does not have authorization to create files for, then the server may return NFS4ERR_PERM <NULL>.
+
+In the case where an OPEN specifies a size of zero (e.g., truncation)  and the file has named attributes, the named attributes are left as is <NULL>.  They are not removed <NULL>.
+
+16.16.6.  IMPLEMENTATION
+
+The OPEN operation contains support for EXCLUSIVE4 create <NULL>.  The mechanism is similar to the support in NFSv3 [RFC1813] <NULL>.  As in NFSv3, this mechanism provides reliable exclusive creation <NULL>.  Exclusive create is invoked when the how parameter is EXCLUSIVE4 <NULL>.  In this case, the client provides a verifier that can reasonably be expected to be unique <NULL>.  A combination of a client identifier, perhaps the client network address, and a unique number generated by the client, perhaps the RPC transaction identifier, may be appropriate <NULL>.
+
+If the object does not exist, the server creates the object and stores the verifier in stable storage <NULL>.  For file systems that do not provide a mechanism for the storage of arbitrary file attributes, the server may use one or more elements of the object metadata to store the verifier <NULL>.  The verifier must be stored in stable storage to prevent erroneous failure on retransmission of the request <NULL>.  It is assumed that an exclusive create is being performed because exclusive semantics are critical to the application <NULL>.  Because of the expected usage, exclusive create does not rely solely on the normally volatile duplicate request cache for storage of the verifier <NULL>.  The duplicate request cache in volatile storage does not survive a crash and may actually flush on a long network partition, opening failure windows <NULL>. In the UNIX local file system environment, the expected storage location for the verifier on creation is the metadata (timestamps) of the object <NULL>.  For this reason, an exclusive object create may not include initial attributes because the server would have nowhere to store the verifier <NULL>.
+
+If the server cannot support these exclusive create semantics, possibly because of the requirement to commit the verifier to stable storage, it should fail the OPEN request with the error NFS4ERR_NOTSUPP <NULL>.
+
+During an exclusive CREATE request, if the object already exists, the server reconstructs the object's verifier and compares it with the verifier in the request <NULL>.  If they match, the server treats the request as a success <NULL>.  The request is presumed to be a duplicate of an earlier, successful request for which the reply was lost and that the server duplicate request cache mechanism did not detect <NULL>.  If the verifiers do not match, the request is rejected with the status NFS4ERR_EXIST <NULL>.
+
+Once the client has performed a successful exclusive create, it must issue a SETATTR to set the correct object attributes <NULL>.  Until it does so, it should not rely upon any of the object attributes, since the server implementation may need to overload object metadata to store the verifier <NULL>.  The subsequent SETATTR must not occur in the same COMPOUND request as the OPEN <NULL>.  This separation will guarantee that the exclusive create mechanism will continue to function properly in the face of retransmission of the request <NULL>.
+
+Use of the GUARDED4 attribute does not provide "exactly-once" semantics <NULL>.  In particular, if a reply is lost and the server does not detect the retransmission of the request, the operation can fail with NFS4ERR_EXIST, even though the create was performed successfully <NULL>. The client would use this behavior in the case that the application has not requested an exclusive create but has asked to have the file truncated when the file is opened <NULL>.  In the case of the client timing out and retransmitting the create request, the client can use GUARDED4 to prevent a sequence such as create, write, create (retransmitted) from occurring <NULL>.
+
+For share reservations (see Section 9.9), the client must specify a value for share_access that is one of OPEN4_SHARE_ACCESS_READ, OPEN4_SHARE_ACCESS_WRITE, or OPEN4_SHARE_ACCESS_BOTH <NULL>.  For share_deny, the client must specify one of OPEN4_SHARE_DENY_NONE, OPEN4_SHARE_DENY_READ, OPEN4_SHARE_DENY_WRITE, or OPEN4_SHARE_DENY_BOTH <NULL>.  If the client fails to do this, the server must return NFS4ERR_INVAL <NULL>.
+
+Based on the share_access value (OPEN4_SHARE_ACCESS_READ, OPEN4_SHARE_ACCESS_WRITE, or OPEN4_SHARE_ACCESS_BOTH), the client should check that the requester has the proper access rights to perform the specified operation <NULL>.  This would generally be the results of applying the ACL access rules to the file for the current requester <NULL>.  However, just as with the ACCESS operation, the client should not attempt to second-guess the server's decisions, as access rights may change and may be subject to server administrative controls outside the ACL framework <NULL>.  If the requester is not authorized to READ or WRITE (depending on the share_access value), the server must return NFS4ERR_ACCESS <NULL>.  Note that since the NFSv4 protocol does not impose any requirement that READs and WRITEs issued for an open file have the same credentials as the OPEN itself, the server still must do appropriate access checking on the READs and WRITEs themselves <NULL>.
+
+If the component provided to OPEN resolves to something other than a regular file (or a named attribute), an error will be returned to the client <NULL>.  If it is a directory, NFS4ERR_ISDIR is returned; otherwise, NFS4ERR_SYMLINK is returned <NULL>.  Note that NFS4ERR_SYMLINK is returned for both symlinks and for special files of other types; NFS4ERR_INVAL would be inappropriate, since the arguments provided by the client were correct, and the client cannot necessarily know at the time it sent the OPEN that the component would resolve to a non-regular file <NULL>.
+
+If the current filehandle is not a directory, the error NFS4ERR_NOTDIR will be returned <NULL>.
+
+If a COMPOUND contains an OPEN that establishes an OPEN_DELEGATE_WRITE delegation, then subsequent GETATTRs normally result in a CB_GETATTR being sent to the client holding the delegation <NULL>.  However, in the case in which the OPEN and GETATTR are part of the same COMPOUND, the server SHOULD understand that the operations are for the same client ID and avoid querying the client, which will not be able to respond <NULL>.  This sequence of OPEN and GETATTR SHOULD be understood to be the retrieval of the size and change attributes at the time of OPEN <NULL>.  Further, as explained in Section 15.2.5, the client should not construct a COMPOUND that mixes operations for different client IDs <NULL>.
+
+
