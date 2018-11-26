@@ -1,6 +1,7 @@
-This repository contains an implementation of the [GloVe][1] word vector learning algorithm in Python (NumPy + SciPy).
+# Generate GLoVe embeddings
 
-The implementation is for educational purposes only; you should look elsewhere if you are looking for an efficient / robust solution.
+### Details
 
-[1]: http://www-nlp.stanford.edu/projects/glove/
-[2]: http://www.foldl.me/2014/glove-python/
+1. Test is written in test_glove.py
+2. For generating embeddings, create a file called combined_rfc.txt and put all the rfc txt in there
+3. Open the gen_emed.ipynb and execute each cell to get the embeddings
